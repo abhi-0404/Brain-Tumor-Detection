@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MRI Classifier | Neural Detection</title>
+    
+    <!-- EMBEDDED CSS: Bypasses static folder linking issues -->
+    <style>
+      /* ==========================================================================
+         Core Variables & Obsidian Theme
+         ========================================================================== */
+      :root {
+        --bg-base: #0a0c10;
+        --bg-panel: rgba(18, 22, 29, 0.65);
+        --text-main: #f8fafc;
+        --text-muted: #94a3b8;
+        
+        --accent-cyan: #06b6d4;
+        --accent-cyan-glow: rgba(6, 182, 212, 0.4);
+        --accent-blue: #3b82f6;
+        --accent-purple: #8b5cf6;
+        
+        --status-online: #10b981;
+        --status-offline: #f59e0b;
+        --status-error: #ef4444;
+        --bg-error: rgba(239, 68, 68, 0.1);
+
+        --glass-border: rgba(255, 255, 255, 0.08);
+        --glass-highlight: rgba(255, 255, 255, 0.12);
+        --radius-lg: 24px;
+        --radius-md: 16px;
+        --radius-sm: 8px;
+        --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body.dark-theme {
+        font-family: var(--font-sans);
+        background-color: var(--bg-base);
+        color: var(--text-main);
+        min-height: 100vh;
+        line-height: 1.5;
+        overflow-x: hidden;
+        position: relative;
+      }
+
+      /* Ambient Background Lighting */
+      .ambient-light {
+        position: fixed;
+        border-radius: 50%;
+        filter: blur(120px);
+        z-index: -1;
+        opacity: 0.4;
+        pointer-events: none;
+      }
+      .glow-1 {
+        top: -10%; left: -10%;
+        width: 50vw; height: 50vw;
+        background: radial-gradient(circle, var(--accent-blue), transparent 70%);
+      }
+      .glow-2 {
+        bottom: -20%; right: -10%;
+        width: 60vw; height: 60vw;
+        background: radial-gradient(circle, var(--accent-purple), transparent 70%);
+        opacity: 0.2;
+      }
+
+      /* Layout Structure & Glass Panels */
+      .app-container {
+        width: min(1200px, 100% - 48px);
+        margin: 40px auto;
+        display: flex;
+        flex-direction: column;
+        gap: 32px;
+      }
+
+      .gloss-header, .gloss-panel {
+        background: var(--bg-panel);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        border: 1px solid var(--glass-border);
+        border-radius: var(--radius-lg);
+        box-shadow: 0 24px 48px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      }
+
+      /* Header Elements */
+      .gloss-header {
+        padding: 24px 32px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .brand {
+        display: flex; align-items: center; gap: 16px;
+      }
+      .brand-icon {
+        width: 48px; height: 48px;
+        background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+        border-radius: var(--radius-sm);
+        display: grid; place-items: center; color: white;
+        box-shadow: 0 0 20px var(--accent-cyan-glow);
+      }
+      .brand h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em; }
+      .brand .subtitle { color: var(--text-muted); font-size: 0.9rem; }
+
+      .system-status {
+        display: flex; align-items: center; gap: 8px;
+        padding: 8px 16px; background: rgba(0, 0, 0, 0.2);
+        border: 1px solid var(--glass-border); border-radius: 999px;
+        font-size: 0.85rem; font-weight: 600;
+      }
+      .status-indicator { width: 8px; height: 8px; border-radius: 50%; }
+      .status-online .status-indicator {
+        background-color: var(--status-online); box-shadow: 0 0 10px var(--status-online);
+      }
+      .status-offline .status-indicator { background-color: var(--status-offline); }
+      .status-offline .status-text { color: var(--text-muted); }
+
+      /* Workspace Grid */
+      .workspace-grid {
+        display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: stretch;
+      }
+      .gloss-panel { padding: 32px; display: flex; flex-direction: column; }
+
+      /* Input Panel Styling */
+      .input-panel { gap: 24px; background: linear-gradient(135deg, rgba(59, 130, 246, 0.03), rgba(139, 92, 246, 0.03)); }
+
+      /* Output Panel Styling */
+      .output-panel { gap: 24px; background: linear-gradient(135deg, rgba(6, 182, 212, 0.03), rgba(59, 130, 246, 0.03)); }
+
+      /* Interactive Dropzone */
+      .interactive-dropzone {
+        position: relative; flex: 1; min-height: 320px;
+        border: 2px dashed var(--glass-highlight); border-radius: var(--radius-md);
+        background: linear-gradient(135deg, rgba(0, 0, 0, 0.3), rgba(6, 182, 212, 0.02));
+        cursor: pointer; overflow: hidden;
+        transition: var(--transition); display: flex; flex-direction: column;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+      }
+      .interactive-dropzone:hover, .interactive-dropzone.drag-active {
+        border-color: var(--accent-cyan); background: linear-gradient(135deg, rgba(0, 0, 0, 0.2), rgba(6, 182, 212, 0.08));
+        box-shadow: inset 0 0 40px rgba(6, 182, 212, 0.08), 0 0 20px rgba(6, 182, 212, 0.05);
+      }
+      .interactive-dropzone input[type="file"] {
+        position: absolute; inset: 0; width: 100%; height: 100%;
+        opacity: 0; cursor: pointer; z-index: 10;
+      }
+      .dropzone-content {
+        position: absolute; inset: 0; display: flex; flex-direction: column;
+        align-items: center; justify-content: center; text-align: center; pointer-events: none;
+      }
+      .icon-ring {
+        width: 64px; height: 64px; border-radius: 50%;
+        background: rgba(255, 255, 255, 0.03); border: 1px solid var(--glass-border);
+        display: grid; place-items: center; color: var(--accent-cyan);
+        margin-bottom: 20px; transition: var(--transition);
+      }
+      .interactive-dropzone:hover .icon-ring {
+        transform: scale(1.1); background: rgba(6, 182, 212, 0.1); border-color: rgba(6, 182, 212, 0.3);
+      }
+      .primary-instruction { font-size: 1.1rem; font-weight: 600; color: var(--text-main); margin-bottom: 8px; letter-spacing: -0.01em; }
+      .secondary-instruction { font-size: 0.85rem; color: var(--text-muted); font-weight: 500; }
+
+      /* Staged Image State */
+      .staged-content { position: absolute; inset: 0; z-index: 5; }
+      #preview-image { width: 100%; height: 100%; object-fit: contain; background: #000; }
+      .staged-overlay {
+        position: absolute; inset: 0; background: rgba(0, 0, 0, 0.7);
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        opacity: 0; transition: var(--transition); backdrop-filter: blur(4px);
+      }
+      .interactive-dropzone:hover .staged-overlay { opacity: 1; }
+      .staged-filename {
+        font-family: monospace; color: white; margin-bottom: 16px;
+        background: rgba(0,0,0,0.5); padding: 4px 12px; border-radius: 4px;
+      }
+      .change-file-badge {
+        padding: 8px 16px; background: var(--accent-cyan); color: #000;
+        font-weight: 600; font-size: 0.9rem; border-radius: 999px;
+      }
+
+      /* Primary Action Button */
+      .primary-action {
+        width: 100%; padding: 18px; border: 1px solid var(--accent-cyan);
+        background: rgba(6, 182, 212, 0.1); color: var(--accent-cyan);
+        border-radius: var(--radius-sm); font-size: 1rem; font-weight: 600;
+        cursor: pointer; transition: var(--transition); position: relative;
+        overflow: hidden; display: flex; justify-content: center; align-items: center;
+      }
+      .primary-action:hover:not(:disabled) {
+        background: var(--accent-cyan); color: #000; box-shadow: 0 0 20px var(--accent-cyan-glow);
+      }
+      .primary-action:disabled {
+        border-color: var(--glass-border); color: var(--text-muted);
+        background: rgba(255, 255, 255, 0.02); cursor: not-allowed;
+      }
+
+      /* Warning Banner */
+      .warning-banner {
+        display: flex; align-items: center; gap: 12px;
+        width: 100%; padding: 16px; border-radius: var(--radius-sm);
+        background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3);
+        color: #fbbf24; font-weight: 600;
+      }
+
+      .loader-ring {
+        width: 20px; height: 20px; border: 2px solid transparent;
+        border-top-color: currentColor; border-right-color: currentColor;
+        border-radius: 50%; animation: spin 0.8s linear infinite; position: absolute;
+      }
+
+      /* Output Panel & Results */
+      .panel-header h2 {
+        font-size: 1.2rem; font-weight: 600; color: var(--text-main);
+        border-bottom: 1px solid var(--glass-border); padding-bottom: 16px; margin-bottom: 24px;
+      }
+      .results-wrapper { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+
+      .status-card {
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        text-align: center; padding: 40px 24px; border-radius: var(--radius-sm);
+        border: 1px dashed var(--glass-border); background: rgba(0,0,0,0.2);
+      }
+      .idle-icon { color: var(--glass-highlight); margin-bottom: 16px; font-size: 2rem; }
+      .idle-icon svg { filter: drop-shadow(0 0 10px rgba(6, 182, 212, 0.2)); }
+      .status-card.idle-card p { color: var(--text-muted); font-size: 1rem; }
+      .error-card {
+        border-color: rgba(239, 68, 68, 0.3); background: var(--bg-error);
+        color: var(--status-error); flex-direction: row; gap: 12px; padding: 20px;
+        align-items: flex-start;
+      }
+      .error-card p { text-align: left; }
+
+      /* Primary Prediction Results */
+      .primary-prediction {
+        text-align: center; margin-bottom: 40px;
+        padding: 32px 24px; border-radius: var(--radius-md);
+        background: linear-gradient(135deg, rgba(6, 182, 212, 0.08), rgba(59, 130, 246, 0.08));
+        border: 1px solid rgba(6, 182, 212, 0.25);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 4px 16px rgba(6, 182, 212, 0.1);
+      }
+
+      .prediction-label {
+        display: block; font-size: 0.85rem; text-transform: uppercase;
+        letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 8px;
+      }
+      .prediction-value { display: block; font-size: 3rem; line-height: 1.1; color: white; margin-bottom: 16px; }
+      .text-glow { text-shadow: 0 0 30px var(--accent-cyan-glow); }
+      .confidence-pill {
+        display: inline-block; padding: 8px 20px; background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(16, 185, 129, 0.1));
+        color: var(--status-online); border: 1px solid rgba(16, 185, 129, 0.4);
+        border-radius: 999px; font-size: 0.85rem; font-weight: 700; letter-spacing: 0.05em;
+        box-shadow: 0 0 20px rgba(16, 185, 129, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      }
+
+      .probability-metrics { display: flex; flex-direction: column; gap: 16px; }
+      .metric-row { display: flex; flex-direction: column; gap: 8px; }
+      .metric-header { display: flex; justify-content: space-between; font-size: 0.9rem; font-family: monospace; }
+      .metric-name { color: var(--text-main); }
+      .metric-value { color: var(--accent-cyan); }
+      .metric-bar-bg { height: 6px; background: rgba(255, 255, 255, 0.05); border-radius: 999px; overflow: hidden; }
+      .metric-bar-fill {
+        height: 100%; background: linear-gradient(90deg, var(--accent-blue), var(--accent-cyan));
+        border-radius: 999px; box-shadow: 0 0 10px var(--accent-cyan-glow);
+      }
+
+      .system-meta {
+        margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--glass-border);
+        font-family: monospace; font-size: 0.8rem; color: var(--text-muted);
+      }
+      .system-meta .highlight { color: var(--accent-blue); }
+      .app-footer { text-align: center; font-size: 0.85rem; color: var(--text-muted); margin-top: 24px;}
+
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      @media (max-width: 900px) { .workspace-grid { grid-template-columns: 1fr; } }
+      @media (max-width: 600px) {
+        .gloss-header { flex-direction: column; align-items: flex-start; gap: 16px; }
+        .app-container { width: 100%; margin: 0; padding: 16px; }
+      }
+    </style>
+  </head>
+  <body class="dark-theme">
+    <div class="ambient-light glow-1"></div>
+    <div class="ambient-light glow-2"></div>
+
+    <main class="app-container">
+      <header class="gloss-header">
+        <div class="brand">
+          <div class="brand-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"></path><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+          </div>
+          <div>
+            <h1>Brain Tumor Detection</h1>
+            <span class="subtitle">Deep Learning MRI Analysis</span>
+          </div>
+        </div>
+        
+        <div class="system-status {% if model_ready %}status-online{% else %}status-offline{% endif %}">
+          <div class="status-indicator"></div>
+          <span class="status-text">{% if model_ready %}System Online{% else %}Model Missing{% endif %}</span>
+        </div>
+      </header>
+
+      <section class="workspace-grid">
+        <form class="gloss-panel input-panel" id="upload-form" method="post" enctype="multipart/form-data">
+          <label class="interactive-dropzone" id="drop-zone" for="image">
+            <input id="image" name="image" type="file" accept=".jpg,.jpeg,.png,.bmp" required>
+            
+            <div class="dropzone-content" id="drop-zone-initial">
+              <div class="icon-ring">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+              </div>
+              <p class="primary-instruction">Select or drop MRI scan</p>
+              <p class="secondary-instruction">JPG, PNG, BMP</p>
+            </div>
+
+            <div class="staged-content" id="drop-zone-staged" hidden>
+              <img id="preview-image" alt="MRI Preview">
+              <div class="staged-overlay">
+                <span id="preview-name" class="staged-filename"></span>
+                <div class="change-file-badge">Click to change</div>
+              </div>
+            </div>
+          </label>
+
+          {% if model_ready %}
+            <button class="primary-action" id="submit-btn" type="submit">
+              <span class="btn-label">🔍 Analyze MRI</span>
+              <div class="loader-ring" id="btn-loader" hidden></div>
+            </button>
+          {% else %}
+            <button class="primary-action" id="submit-btn" type="submit" disabled>
+              <span class="btn-label">⚠️ Model Not Ready</span>
+            </button>
+            <p style="text-align: center; color: var(--text-muted); font-size: 0.85rem; margin-top: 12px;">
+              Train model first: <code style="background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px;">python -m brain_tumor_detection.train</code>
+            </p>
+          {% endif %}
+        </form>
+
+        <aside class="gloss-panel output-panel" aria-live="polite">
+          <div class="panel-header">
+            <h2>Diagnostic Results</h2>
+          </div>
+
+          <div class="results-wrapper">
+            {% if error %}
+              <div class="status-card error-card">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                <p>{{ error }}</p>
+              </div>
+            
+            {% elif result %}
+              <div class="primary-prediction">
+                <span class="prediction-label">Detected Classification</span>
+                <strong class="prediction-value text-glow">{{ result.predicted_class | capitalize }}</strong>
+                <div class="confidence-pill">{{ "%.2f"|format(result.confidence_percent) }}% Match</div>
+              </div>
+
+              <div class="probability-metrics">
+                {% for item in result.probability_items %}
+                  <div class="metric-row">
+                    <div class="metric-header">
+                      <span class="metric-name">{{ item.label | capitalize }}</span>
+                      <span class="metric-value">{{ "%.2f"|format(item.percent) }}%</span>
+                    </div>
+                    <div class="metric-bar-bg">
+                      <div class="metric-bar-fill" style="width: {{ item.percent }}%"></div>
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            
+            {% else %}
+              <div class="status-card idle-card">
+                <div class="idle-icon">
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                </div>
+                <p>Awaiting scan input.</p>
+              </div>
+            {% endif %}
+          </div>
+
+          <div class="system-meta">
+            <p>Model: <span class="highlight">{{ model_path.name }}</span></p>
+            <p>Classes: <span class="highlight">{{ class_indices_path.name }}</span></p>
+          </div>
+        </aside>
+      </section>
+
+      <footer class="app-footer">
+        <p>Research prototype only. Not for medical diagnosis.</p>
+      </footer>
+    </main>
+
+    <!-- EMBEDDED JAVASCRIPT: Bypasses static folder linking issues -->
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        const form = document.getElementById('upload-form');
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('image');
+        const initialContent = document.getElementById('drop-zone-initial');
+        const stagedContent = document.getElementById('drop-zone-staged');
+        const previewImage = document.getElementById('preview-image');
+        const previewName = document.getElementById('preview-name');
+        const submitBtn = document.getElementById('submit-btn');
+        const btnLabel = submitBtn.querySelector('.btn-label');
+        const btnLoader = document.getElementById('btn-loader');
+
+        const MAX_FILE_SIZE = 8 * 1024 * 1024;
+        const VALID_TYPES = ['image/jpeg', 'image/png', 'image/bmp'];
+
+        const handleFile = (file) => {
+          if (!file) return resetUI();
+          if (!VALID_TYPES.includes(file.type)) {
+            alert('Unsupported file type. Please upload a JPG, PNG, or BMP.');
+            return resetUI();
+          }
+          if (file.size > MAX_FILE_SIZE) {
+            alert('File is too large. Maximum size is 8MB.');
+            return resetUI();
+          }
+
+          if (previewImage.src) { URL.revokeObjectURL(previewImage.src); }
+          
+          previewImage.src = URL.createObjectURL(file);
+          previewName.textContent = file.name;
+          previewName.title = file.name;
+
+          initialContent.hidden = true;
+          stagedContent.hidden = false;
+          if (!submitBtn.disabled) { submitBtn.disabled = false; }
+        };
+
+        const resetUI = () => {
+          fileInput.value = '';
+          if (previewImage.src) {
+            URL.revokeObjectURL(previewImage.src);
+            previewImage.removeAttribute('src');
+          }
+          previewName.textContent = '';
+          stagedContent.hidden = true;
+          initialContent.hidden = false;
+          if (!submitBtn.disabled) { submitBtn.disabled = true; }
+        };
+
+        const setLoadingState = () => {
+          submitBtn.disabled = true;
+          btnLabel.textContent = 'Analyzing Scan...';
+          btnLoader.hidden = false;
+        };
+
+        fileInput.addEventListener('change', (e) => { handleFile(e.target.files[0]); });
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+          dropZone.addEventListener(eventName, (e) => { e.preventDefault(); e.stopPropagation(); }, false);
+          document.body.addEventListener(eventName, (e) => { e.preventDefault(); e.stopPropagation(); }, false);
+        });
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+          dropZone.addEventListener(eventName, () => { dropZone.classList.add('drag-active'); });
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+          dropZone.addEventListener(eventName, () => { dropZone.classList.remove('drag-active'); });
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+          const droppedFile = e.dataTransfer.files[0];
+          if (droppedFile) {
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(droppedFile);
+            fileInput.files = dataTransfer.files;
+            handleFile(droppedFile);
+          }
+        });
+
+        form.addEventListener('submit', () => {
+          if (fileInput.files.length > 0) { setLoadingState(); }
+        });
+      });
+    </script>
+  </body>
+</html>
