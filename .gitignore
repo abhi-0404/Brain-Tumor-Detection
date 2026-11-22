@@ -1,18 +1,49 @@
+# --- Python & Environment ---
 __pycache__/
 *.py[cod]
+*$py.class
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-
 .venv/
 venv/
 env/
+dist/
+build/
+*.egg-info/
 
-Dataset/Training/
-Dataset/Testing/
+# --- Data & Large Artifacts ---
+# Matches your directory structure from the app code
+Dataset/
+data/raw/
+data/processed/
 
+# Model binaries (High Value: keeps repo size small)
 artifacts/
+models/
 *.keras
 *.h5
+*.onnx
 
-.ipynb_checkpoints/
+# --- Reports & Logs ---
+# Keep your reports folder if you want to commit metrics/figures, 
+# but ignore local logs or temporary runs
+*.log
+.DS_Store
+Thumbs.db
+
+# --- IDEs & System ---
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- Secrets & Config ---
+.env
+# added 2026-11-22: deps, builds and secrets
+node_modules/
+.next/
+.env.*
+!.env.example
+*.pem
+*.key
